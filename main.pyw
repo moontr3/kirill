@@ -44,7 +44,7 @@ class Tree:
         self.rect = pg.Rect(pos[0]-100, pos[1]-100, 200,200)
 
     def draw(self, pos):
-        pg.draw.circle(screen, (10,40,10), pos, 100)
+        pg.draw.circle(screen, (15,45,15), pos, 100)
 
 
 class Coal:
@@ -95,7 +95,7 @@ class Game:
         center = self.world_to_screen((5000,5000))
 
         # BG
-        screen.fill((5,15,5))
+        screen.fill((10,30,10))
 
         # player
         pg.draw.circle(screen, (255,255,255), player, 25)
