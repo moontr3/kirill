@@ -38,22 +38,77 @@ def get_distance(p1, p2):
 
 # app classes
 
-class Tree:
+class Prop:
     def __init__(self, pos):
         self.pos = pos
+        self.behind = False
+        self.deletable = False
+
+    def draw(self, pos):
+        pg.draw.circle(screen, self.color, pos, self.radius)
+
+    def update(self):
+        pass
+
+    def collect(self):
+        pass
+
+
+class Tree(Prop):
+    def __init__(self, pos):
+        super().__init__(pos)
         self.rect = pg.Rect(pos[0]-100, pos[1]-100, 200,200)
+        self.color = (15,40,15)
+        self.radius = 100
+
+        self.cut_down = False
+        self.cut_down_key = 0.0
+        self.cd_anim_key = 0.0
+        self.blink_anim = -100
 
     def draw(self, pos):
-        pg.draw.circle(screen, (15,45,15), pos, 100)
+        if not self.cut_down:
+            pg.draw.circle(screen, self.color, pos, self.radius)
+        elif (self.blink_anim < 0) or (int(self.blink_anim/3)%2==0):
+            pg.draw.line(screen, (50,40,15), (pos[0], pos[1]), (pos[0]-200*self.cd_anim_key, pos[1]), int(40-(40*(self.cd_anim_key/3))))
+            pg.draw.circle(screen, (50,40,15), (pos[0], pos[1]+1), round((40-(40*(self.cd_anim_key/3)))/2))
+            pg.draw.circle(screen, self.color, (pos[0]-200*self.cd_anim_key, pos[1]), self.radius-(self.radius*(self.cd_anim_key/4)))
+
+    def update(self):
+        if self.cut_down:
+            if self.cut_down_key < 1.0:
+                self.cut_down_key += 0.01
+                self.cd_anim_key = easing.QuarticEaseIn(0,1,1).ease(self.cut_down_key)
+            else:
+                self.blink_anim += 1
+                self.behind = True
+                if self.blink_anim > 35:
+                    self.deletable = True
+
+    def collect(self):
+        global app
+        if not self.cut_down:
+            app.sticks += random.randint(2,3)
+            self.cut_down = True
+            return True
+        return False
 
 
-class Coal:
+class Coal(Prop):
     def __init__(self, pos):
+        super().__init__(pos)
         self.pos = pos
+        self.behind = True
+        self.deletable = False
         self.rect = pg.Rect(pos[0]-15, pos[1]-15, 30,30)
+        self.color = (15,15,15)
+        self.radius = 15
 
-    def draw(self, pos):
-        pg.draw.circle(screen, (5,5,5), pos, 15)
+    def collect(self):
+        global app
+        app.coal += 1
+        self.deletable = True
+        return True
 
 
 class Game:
@@ -61,12 +116,15 @@ class Game:
         self.player_pos = [5000,5000]
         self.it_pos = [5000,50]
         self.cam_pos = [5000,5000]
-
         self.speed = 5
+
         self.temperature = 0.7
         self.stamina = 500
         self.stamina_restore = 0
         self.fuel = 140
+        self.coal = 0
+        self.sticks = 3
+        self.matches = 2
 
         self.props = []
         self.gen_world()
@@ -87,8 +145,10 @@ class Game:
             new.append(i)
         self.props = new
 
+
     def world_to_screen(self, point):
         return [point[0]-self.cam_pos[0]+halfx, point[1]-self.cam_pos[1]+halfy]
+    
 
     def draw(self):
         player = self.world_to_screen(self.player_pos)
@@ -96,6 +156,11 @@ class Game:
 
         # BG
         screen.fill((10,30,10))
+
+        # props behind player
+        for i in self.props:
+            if i.behind:
+                i.draw(self.world_to_screen(i.pos))
 
         # player
         pg.draw.circle(screen, (255,255,255), player, 25)
@@ -115,12 +180,25 @@ class Game:
 
         # props
         for i in self.props:
-            i.draw(self.world_to_screen(i.pos))
+            if not i.behind:
+                i.draw(self.world_to_screen(i.pos))
+
+        # gui
+        draw.text(f'matches', (30, windowy-120), size=14, v='m')
+        draw.text(f'sticks', (30, windowy-80), size=14, v='m')
+        draw.text(f'coal', (30, windowy-40), size=14, v='m')
+
+        draw.text(str(self.matches), (135, windowy-120), size=21, v='m')
+        draw.text(str(self.sticks), (110, windowy-80), size=21, v='m')
+        draw.text(str(self.coal), (90, windowy-40), size=21, v='m')
+
 
     def update(self):
         # sprint
-        moving = keys[pg.K_w] or keys[pg.K_a] or keys[pg.K_s] or keys[pg.K_d]
+        moving = [i for i in [keys[pg.K_w], keys[pg.K_a], keys[pg.K_s], keys[pg.K_d]] if i]
         self.speed = 5+int(keys[pg.K_LSHIFT] and self.stamina > 0)*3
+        if len(moving) == 2:
+            self.speed *= 0.725
 
         if keys[pg.K_LSHIFT] and moving and self.stamina > 0:
             self.stamina -= 1
@@ -141,8 +219,8 @@ class Game:
             if keys[pg.K_d]:
                 self.player_pos[0] += self.speed
 
-            self.player_pos[0] = max(0, min(10000, self.player_pos[0]))
-            self.player_pos[1] = max(0, min(10000, self.player_pos[1]))
+            self.player_pos[0] = round(max(0, min(10000, self.player_pos[0])))
+            self.player_pos[1] = round(max(0, min(10000, self.player_pos[1]))) 
 
         # cam movement
         self.cam_pos[0] += (self.player_pos[0]-self.cam_pos[0])/7
@@ -151,6 +229,17 @@ class Game:
             max(halfx, min(10000-halfx, self.cam_pos[0])),
             max(halfy, min(10000-halfy, self.cam_pos[1]))
         ]
+
+        # props
+        not_collected = True
+        for i in self.props:
+            i.update()
+            if pg.K_e in just_pressed and not_collected\
+                and get_distance(i.pos, self.player_pos) < i.radius+25:
+                    a = i.collect()
+                    if a:
+                        not_collected = False
+        self.props = [i for i in self.props if not i.deletable]
 
         # campfire
         self.safe_zone = self.fuel*2+30
@@ -188,6 +277,7 @@ while running:
     mouse_press = pg.mouse.get_pressed(5)
     mouse_moved = pg.mouse.get_rel()
     keys = pg.key.get_pressed()
+    just_pressed = []
 
     # events
     for event in events:
@@ -202,6 +292,9 @@ while running:
             if screeny <= 480:
                 screeny = 480
             window = pg.display.set_mode((screenx,screeny), pg.RESIZABLE)
+
+        if event.type == pg.KEYDOWN:
+            just_pressed.append(event.key)
 
     # updating
     app.update()
