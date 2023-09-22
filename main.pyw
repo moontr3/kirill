@@ -21,7 +21,7 @@ window = pg.display.set_mode((screenx,screeny), pg.RESIZABLE)
 screen = pg.Surface((windowx, windowy))
 
 running = True
-pg.display.set_caption('caption')
+pg.display.set_caption('@ Silly Kirill')
 draw.def_surface = screen
 
 halfx = windowx//2
@@ -37,6 +37,15 @@ def get_distance(p1, p2):
 
 
 # app classes
+
+class Skin:
+    def __init__(self, image, x_dimension, speed=5, sprint=3):
+        self.image = 'skins/'+image+'.jpg'
+        self.x_dimension = x_dimension
+        self.size = [75*self.x_dimension, 75]
+        self.speed = speed
+        self.sprint = sprint
+        
 
 class Prop:
     def __init__(self, pos):
@@ -80,15 +89,16 @@ class Tree(Prop):
                 self.cut_down_key += 0.01
                 self.cd_anim_key = easing.QuarticEaseIn(0,1,1).ease(self.cut_down_key)
             else:
+                if not self.behind:
+                    global app
+                    app.sticks += random.randint(2,3)
                 self.blink_anim += 1
                 self.behind = True
                 if self.blink_anim > 35:
                     self.deletable = True
 
     def collect(self):
-        global app
         if not self.cut_down:
-            app.sticks += random.randint(2,3)
             self.cut_down = True
             return True
         return False
@@ -109,14 +119,15 @@ class Coal(Prop):
         app.coal += 1
         self.deletable = True
         return True
-
+    
 
 class Game:
-    def __init__(self):
+    def __init__(self, skin=Skin('normal', 0.8)):
         self.player_pos = [5000,5000]
         self.it_pos = [5000,50]
         self.cam_pos = [5000,5000]
-        self.speed = 5
+        self.skin = skin
+        self.speed = self.skin.speed
 
         self.temperature = 0.7
         self.stamina = 500
@@ -163,7 +174,7 @@ class Game:
                 i.draw(self.world_to_screen(i.pos))
 
         # player
-        pg.draw.circle(screen, (255,255,255), player, 25)
+        draw.image(self.skin.image, player, self.skin.size, h='m', v='m')
 
         draw.text(f'{self.player_pos[0]}, {self.player_pos[1]}', (player[0]+30, player[1]-10), size=14, v='m')
         draw.text(f'{round(self.player_dst, 1)} pixels away', (player[0]+30, player[1]+10), size=14, v='m')
@@ -175,8 +186,6 @@ class Game:
         # campfire
         pg.draw.circle(screen, (255,255,255), center, 15)
         pg.draw.circle(screen, (255,255,0), center, self.safe_zone, 1)
-
-        pg.draw.line(screen, (255,0,0), center, player, 1)
 
         # props
         for i in self.props:
@@ -196,7 +205,7 @@ class Game:
     def update(self):
         # sprint
         moving = [i for i in [keys[pg.K_w], keys[pg.K_a], keys[pg.K_s], keys[pg.K_d]] if i]
-        self.speed = 5+int(keys[pg.K_LSHIFT] and self.stamina > 0)*3
+        self.speed = self.skin.speed+int(keys[pg.K_LSHIFT] and self.stamina > 0)*self.skin.sprint
         if len(moving) == 2:
             self.speed *= 0.725
 
